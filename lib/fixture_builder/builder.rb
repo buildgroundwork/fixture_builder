@@ -93,8 +93,8 @@ module FixtureBuilder
               table_klass.all.collect do |obj|
                 attrs = obj.attributes
                 attrs.inject({}) do |hash, (attr_name, value)|
-                  if table_klass.serialized_attributes.has_key? attr_name
-                    hash[attr_name] = table_klass.serialized_attributes[attr_name].dump(value)
+                  if serialized_attributes_for(table_klass).has_key? attr_name
+                    hash[attr_name] = serialized_attributes_for(table_klass)[attr_name].dump(value)
                   else
                     hash[attr_name] = value
                   end
@@ -130,6 +130,22 @@ module FixtureBuilder
 
     def fixture_file(table_name)
       fixtures_dir("#{table_name}.yml")
+    end
+
+    private
+
+    def serialized_attributes_for(model)
+      if defined?(::ActiveRecord::Type::Serialized)
+        # Rails 4.2+
+        model.columns.select do |column|
+          column.cast_type.is_a?(::ActiveRecord::Type::Serialized)
+        end.inject({}) do |hash, column|
+          hash[column.name.to_s] = column.cast_type.coder
+          hash
+        end
+      else
+        model.serialized_attributes
+      end
     end
   end
 end
