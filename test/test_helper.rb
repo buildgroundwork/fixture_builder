@@ -26,7 +26,7 @@ require 'fixture_builder'
 
 class MagicalCreature < ActiveRecord::Base
   validates_presence_of :name, :species
-  default_scope :conditions => { :deleted => false }
+  default_scope { where(deleted: false) }
 end
 
 def create_and_blow_away_old_db
