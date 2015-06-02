@@ -14,7 +14,6 @@ end
 
 require 'active_support/concern'
 require 'active_record'
-require 'active_record/test_case'
 require 'active_record/fixtures'
 
 def create_fixtures(*table_names, &block)
