@@ -1,8 +1,9 @@
 require 'rubygems'
 require 'bundler/setup'
 require 'test/unit'
+require 'rails'
 
-class Rails
+module Rails
   def self.root
     Pathname.new(File.join(File.dirname(__FILE__), '..'))
   end
