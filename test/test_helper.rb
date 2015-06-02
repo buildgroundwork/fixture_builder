@@ -40,6 +40,7 @@ def create_and_blow_away_old_db
     t.column :name, :string
     t.column :species, :string
     t.column :deleted, :boolean, :default => false, :null => false
+    t.column :type, :string
   end
 end
 
@@ -49,3 +50,4 @@ def force_fixture_generation
   rescue
   end
 end
+

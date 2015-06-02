@@ -90,24 +90,7 @@ module FixtureBuilder
       Date::DATE_FORMATS[:default] = Date::DATE_FORMATS[:db]
       begin
         fixtures = tables.inject([]) do |files, table_name|
-          table_klass = table_name.classify.constantize rescue nil
-          if table_klass && table_klass < ActiveRecord::Base
-            rows = table_klass.unscoped do
-              table_klass.all.collect do |obj|
-                attrs = obj.attributes
-                attrs.inject({}) do |hash, (attr_name, value)|
-                  if serialized_attributes_for(table_klass).has_key? attr_name
-                    hash[attr_name] = serialized_attributes_for(table_klass)[attr_name].dump(value)
-                  else
-                    hash[attr_name] = value
-                  end
-                  hash
-                end
-              end
-            end
-          else
-            rows = ActiveRecord::Base.connection.select_all(select_sql % ActiveRecord::Base.connection.quote_table_name(table_name))
-          end
+          rows = rows(table_name)
           next files if rows.empty?
 
           row_index = '000'
@@ -125,6 +108,40 @@ module FixtureBuilder
       say "Built #{fixtures.to_sentence}"
     end
 
+    def rows(table_name)
+      table_klass = table_name.classify.constantize rescue nil
+      if table_klass && table_klass < ActiveRecord::Base
+        table_klass.unscoped do
+          table_klass.all.collect { |obj| fixture_attributes_for(obj) }
+        end
+      else
+        ActiveRecord::Base.connection.select_all(select_sql % ActiveRecord::Base.connection.quote_table_name(table_name))
+      end
+    end
+
+    if Rails::VERSION::MAJOR > 4 || Rails::VERSION::MAJOR == 4 && Rails::VERSION::MINOR >= 2
+      def fixture_attributes_for(model)
+        model.class.columns.inject({}) do |memo, column|
+          memo.merge(column.name => column.type_cast_for_database(model.attributes[column.name]))
+        end
+      end
+    else
+      def fixture_attributes_for(model)
+        attrs = model.attributes
+        attrs.inject({}) do |hash, (attr_name, value)|
+          hash.merge(attr_name => fixture_value_for(model, attr_name, value))
+        end
+      end
+
+      def fixture_value_for(model, attr_name, value)
+        if model.serialized_attributes.has_key?(attr_name)
+          model.serialized_attributes[attr_name].dump(value)
+        else
+          value
+        end
+      end
+    end
+
     def write_fixture_file(fixture_data, table_name)
       File.open(fixture_file(table_name), 'w') do |file|
         file.write fixture_data.to_yaml
@@ -133,22 +150,6 @@ module FixtureBuilder
 
     def fixture_file(table_name)
       fixtures_dir("#{table_name}.yml")
-    end
-
-    private
-
-    def serialized_attributes_for(model)
-      if defined?(::ActiveRecord::Type::Serialized)
-        # Rails 4.2+
-        model.columns.select do |column|
-          column.cast_type.is_a?(::ActiveRecord::Type::Serialized)
-        end.inject({}) do |hash, column|
-          hash[column.name.to_s] = column.cast_type.coder
-          hash
-        end
-      else
-        model.serialized_attributes
-      end
     end
   end
 end

@@ -55,4 +55,44 @@ class FixtureBuilderTest < Test::Unit::TestCase
   def test_fixtures_dir
     assert_match /test\/fixtures$/, FixtureBuilder.configuration.send(:fixtures_dir).to_s
   end
+
+  if Rails::VERSION::MAJOR > 4 || Rails::VERSION::MAJOR == 4 && Rails::VERSION::MINOR >= 2
+    class SpeciesType < ActiveRecord::Type::Value
+      def type
+        :string
+      end
+
+      def type_cast_from_database(value)
+        value && value.sub(' IN THE DATABASE', '')
+      end
+
+      def type_cast_for_database(value)
+        "#{value} IN THE DATABASE"
+      end
+
+      def type_cast_from_user(value)
+        value
+      end
+    end
+
+    class CustomAttributeMagicalCreature < MagicalCreature
+      attribute :species, SpeciesType.new
+    end
+
+    def test_custom_type
+      create_and_blow_away_old_db
+      force_fixture_generation
+
+      species = 'Chimera'
+      FixtureBuilder.configure do |fbuilder|
+        fbuilder.files_to_check += Dir[test_path("*.rb")]
+        fbuilder.factory do
+          @sally = CustomAttributeMagicalCreature.create(name: 'Sally', species: species)
+        end
+      end
+      generated_fixture = YAML.load(File.open(test_path("fixtures/magical_creatures.yml")))
+      assert_equal "#{species} IN THE DATABASE", generated_fixture['sally']['species']
+    end
+  end
 end
+
